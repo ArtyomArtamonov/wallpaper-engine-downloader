@@ -32,11 +32,7 @@ func (s SteamWorkshopDownloader) Download(wallpaper string) string {
 	if err != nil {
 		log.Fatal(err.Error())
 	}
-	downloadFolder, err := ioutil.TempDir(filepath.Dir(execPath), "temp")
-
-	if err != nil {
-		log.Fatal(err.Error())
-	}
+	
 	id, err := getIdFromWorkshopLink(wallpaper)
 	if err != nil {
 		log.Fatal(err.Error())
@@ -61,6 +57,12 @@ func (s SteamWorkshopDownloader) Download(wallpaper string) string {
 	
 	var result []byte
 	archive.Body.Read(result)
+
+	downloadFolder, err := ioutil.TempDir(filepath.Dir(execPath), "temp")
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
 	out, _ := os.Create(path.Join(downloadFolder, id + ".zip"))
 	defer out.Close()
 	io.Copy(out, archive.Body)

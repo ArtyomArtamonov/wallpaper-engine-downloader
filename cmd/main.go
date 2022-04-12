@@ -1,36 +1,51 @@
 package main
 
 import (
+	"bufio"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ArtyomArtamonov/wallpaper-engine-downloader/internal/downloader"
 	"github.com/ArtyomArtamonov/wallpaper-engine-downloader/internal/extractor"
 	"github.com/BurntSushi/toml"
 )
 
+var workshopLink = flag.String("wallpaper", "", "Link to wallpaper in steam workshop")
+var wallpaperEngineProjectPath = flag.String("myproject", "", "where wallpapers will be unziped to")
+var configPath = flag.String("config", "", "Used to provide downloader with data such as wallpaper engine project folder etc.")
+
 func main() {
 	input := prepareInput()
-	
-	dwnl := downloader.NewSteamWorkshopDownloader()
 
-	wallpaper := dwnl.Download(input.wallpaperWorkshopLink)
+	for {
+		if input.wallpaperWorkshopLink == "" {
+			input.wallpaperWorkshopLink = askForWallpaperLinkFromInput()
+		}
 
-	extractor.Extract(input.myprojectPath, wallpaper)
+		dwnl := downloader.NewSteamWorkshopDownloader()
 
-	// Delete temporary directory and all files in it
-	downloadDir :=  filepath.Join(filepath.Dir(wallpaper))
-	log.Printf("Removing temp folder %s", downloadDir)
-	err := os.RemoveAll(downloadDir)
-	if err != nil {
-		log.Fatal(err.Error())
+		wallpaper := dwnl.Download(input.wallpaperWorkshopLink)
+
+		extractor.Extract(input.myproject, wallpaper)
+
+		// Delete temporary directory and all files in it
+		downloadDir := filepath.Join(filepath.Dir(wallpaper))
+		log.Printf("Removing temp folder %s", downloadDir)
+		err := os.RemoveAll(downloadDir)
+		if err != nil {
+			log.Fatal(err.Error())
+		}
+
+		input.wallpaperWorkshopLink = ""
 	}
 }
 
 type Input struct {
-	myprojectPath string
+	myproject         string
 	wallpaperWorkshopLink string
 }
 
@@ -40,46 +55,66 @@ type config struct {
 
 func prepareInput() *Input {
 	input := &Input{}
-	// Workshop link from flag
-	workshopLink := flag.String("wallpaper", "", "Link to wallpaper in steam workshop")
-	
-	wallpaperEngineProjectPath := flag.String("myproject", "", "where wallpapers will be unziped to")
 
-	// Trying to find specified config.toml file
-	configPath := flag.String("config", "", "Used to provide downloader with data such as wallpaper engine project folder etc.")
 	flag.Parse()
 
-	if *workshopLink == "" {
-		log.Fatal("-wallpaper flag should not be empty")
-	}
+	input.wallpaperWorkshopLink = *workshopLink
+	input.myproject = *wallpaperEngineProjectPath
 
-	if *configPath != "" {
-		file, err := os.ReadFile(*configPath)
-		if err != nil {
-			log.Fatalf("error: could not find file with name %s", *configPath)
-		}
-		var config config
-		err = toml.Unmarshal(file, &config)
+	var file []byte
+	var err error
+
+	if *configPath == "" {
+		file, err = getDefaultConfig()
 		if err != nil {
 			log.Fatal(err.Error())
 		}
 
-		input.myprojectPath = config.MyprojectPath
 	} else {
-
-		if *workshopLink == "" {
-			log.Fatalf("'config' or 'wallpaper' have to be specified")
+		file, err = os.ReadFile(*configPath)
+		if err != nil {
+			log.Fatal(err.Error())
 		}
-		input.wallpaperWorkshopLink = *workshopLink
-
-		if *wallpaperEngineProjectPath == "" {
-			log.Fatalf("'config' or 'myproject' have to be specified")
-		}
-		input.myprojectPath = *wallpaperEngineProjectPath
 	}
 
+	var config config
+	err = toml.Unmarshal(file, &config)
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	input.myproject = config.MyprojectPath
 	input.wallpaperWorkshopLink = *workshopLink
 
-	return input	
+	if input.myproject == "" {
+		log.Fatal("ERROR: Could not find myproject path." +
+		"Please specify it in config as 'myproject' or pass as flag -myproject")
+	}
+
+	return input
 }
 
+func askForWallpaperLinkFromInput() string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Enter wallpaper workshop link (or n/N to exit): ")
+	text, _ := reader.ReadString('\n')
+	text = strings.ReplaceAll(text, "\r\n", "")
+
+	if strings.ToLower(text) == "n" {
+		os.Exit(0)
+	}
+
+	return text
+}
+
+func getDefaultConfig() ([]byte, error) {
+	execPath, err := os.Executable()
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+
+	thisPath := filepath.Join(filepath.Dir(execPath))
+	defaultConfigPath := filepath.Join(thisPath, "config.toml")
+
+	return os.ReadFile(defaultConfigPath)
+}
