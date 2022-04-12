@@ -32,6 +32,9 @@ Open console and proceed into directory containing executable
 ./wallpaper-engine-downloader.exe -config config.toml -wallpaper "https://steamcommunity.com/sharedfiles/filedetails/?id=818603284&searchtext="
 ```
 
+UPD: Since v0.8 you can place your config.toml file next to .exe file. The program will read its contents.
+Since v0.8 you can specify wallpaper workshop link in terminal after executing the binary. It will read from stdin in loop, if you want to download more than one wallpaper.
+
 ## Credentials
 
 This program uses http://steamworkshop.download/ to download items from steamworkshop. Future versions could support steam API to download directly from steam, but for now, I leave it as is.
